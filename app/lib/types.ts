@@ -24,3 +24,17 @@ export interface Bill {
   active: boolean;
   category?: string;
 }
+
+export type IncomeRecurrenceType = 'ONE_TIME' | 'BIWEEKLY' | 'MONTHLY';
+
+export interface Income {
+  id: string;
+  name: string;
+  amount: number;
+  currency: Currency;
+  date: string; // ISO date string yyyy-mm-dd
+  recurrence: IncomeRecurrenceType;
+  category?: string;
+  notes?: string;
+  source?: string;
+}

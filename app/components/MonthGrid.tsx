@@ -11,7 +11,7 @@ interface CalendarDay {
 
 interface MonthGridProps {
   monthDate: Date;
-  occurrences: Record<string, number>;
+  dayCounts: Record<string, { bills: number; incomes: number }>;
   overdueDates: Set<string>;
   selectedDate: string | null;
   todayKey: string;
@@ -60,7 +60,7 @@ function buildCalendar(monthDate: Date): CalendarDay[] {
 
 export function MonthGrid({
   monthDate,
-  occurrences,
+  dayCounts,
   overdueDates,
   selectedDate,
   todayKey,
@@ -108,8 +108,11 @@ export function MonthGrid({
           const key = toKey(date);
           const isToday = key === todayKey;
           const isSelected = key === selectedDate;
-          const count = occurrences[key] ?? 0;
+          const counts = dayCounts[key];
+          const billCount = counts?.bills ?? 0;
+          const incomeCount = counts?.incomes ?? 0;
           const overdue = overdueDates.has(key);
+          const hasIncome = incomeCount > 0;
 
           return (
             <button
@@ -121,14 +124,18 @@ export function MonthGrid({
                 inCurrentMonth
                   ? 'text-textDark dark:text-textPrimary'
                   : 'text-textDark/30 dark:text-textPrimary/30',
+                hasIncome && !isSelected && 'border-emerald-400/60 bg-emerald-500/10 dark:bg-emerald-500/10',
                 isSelected && 'border-accent bg-accent/10',
-                isToday && 'border border-accent/60',
+                isToday && !isSelected && 'border border-accent/60',
                 'hover:border-accent/40 hover:bg-accent/10',
               )}
             >
               <div className="flex items-center gap-2 text-base font-semibold">
                 <span>{date.getDate()}</span>
-                <Badge value={count} variant={overdue ? 'danger' : 'default'} />
+                <div className="ml-auto flex items-center gap-1">
+                  <Badge value={billCount} variant={overdue ? 'danger' : 'default'} />
+                  <Badge value={incomeCount} variant="income" />
+                </div>
               </div>
               <span className="mt-auto text-xs text-textDark/40 dark:text-textPrimary/40">
                 {inCurrentMonth ? '' : date.getMonth() === monthDate.getMonth() ? '' : ''}

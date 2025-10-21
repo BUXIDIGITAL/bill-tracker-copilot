@@ -1,4 +1,4 @@
-import type { Bill, Recurrence } from './types';
+import type { Bill, Income, IncomeRecurrenceType, Recurrence } from './types';
 
 const MS_PER_DAY = 86_400_000;
 
@@ -147,4 +147,84 @@ export function isOverdue(dateString: string, reference: Date = new Date()): boo
   const date = parseISODate(dateString);
   const today = startOfDay(reference);
   return date < today;
+}
+
+function advanceIncomeDate(date: Date, recurrence: IncomeRecurrenceType): Date | null {
+  switch (recurrence) {
+    case 'ONE_TIME':
+      return null;
+    case 'BIWEEKLY':
+      return addDays(date, 14);
+    case 'MONTHLY':
+      return addMonthsSafe(date, 1);
+    default:
+      return null;
+  }
+}
+
+function rewindIncomeToStart(first: Date, start: Date, recurrence: IncomeRecurrenceType): Date {
+  if (first >= start || recurrence === 'ONE_TIME') {
+    return first;
+  }
+
+  let current = first;
+  let guard = 0;
+  while (current < start && guard < 500) {
+    const next = advanceIncomeDate(current, recurrence);
+    if (!next) {
+      break;
+    }
+    current = next;
+    guard += 1;
+  }
+  return current;
+}
+
+function generateIncomeOccurrences(
+  income: Income,
+  rangeStart: Date,
+  rangeEnd: Date,
+): string[] {
+  const start = startOfDay(rangeStart);
+  const end = startOfDay(rangeEnd);
+  const first = parseISODate(income.date);
+
+  if (first > end) {
+    return [];
+  }
+
+  if (income.recurrence === 'ONE_TIME') {
+    if (first >= start && first <= end) {
+      return [toISODateString(first)];
+    }
+    return [];
+  }
+
+  const occurrences: string[] = [];
+  let current = rewindIncomeToStart(first, start, income.recurrence);
+  let guard = 0;
+
+  while (current <= end && guard < 500) {
+    if (current >= start) {
+      occurrences.push(toISODateString(current));
+    }
+    const next = advanceIncomeDate(current, income.recurrence);
+    if (!next) {
+      break;
+    }
+    current = next;
+    guard += 1;
+  }
+
+  return occurrences;
+}
+
+export function getIncomeOccurrencesInMonth(income: Income, monthDate: Date): string[] {
+  const start = startOfDay(new Date(monthDate.getFullYear(), monthDate.getMonth(), 1));
+  const end = startOfDay(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0));
+  return generateIncomeOccurrences(income, start, end);
+}
+
+export function getIncomeOccurrencesInRange(income: Income, start: Date, end: Date): string[] {
+  return generateIncomeOccurrences(income, startOfDay(start), startOfDay(end));
 }

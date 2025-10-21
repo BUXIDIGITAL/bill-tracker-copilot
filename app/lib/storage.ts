@@ -1,7 +1,15 @@
-import type { Bill } from './types';
+import type {
+  Bill,
+  Currency,
+  Income,
+  IncomeRecurrenceType,
+  RecurrenceType,
+} from './types';
 
-const STORAGE_KEY = 'bill-tracker-bills';
-const SEED_FLAG_KEY = 'bill-tracker-seeded';
+const BILL_STORAGE_KEY = 'bill-tracker-bills';
+const BILL_SEED_FLAG_KEY = 'bill-tracker-seeded';
+const INCOME_STORAGE_KEY = 'bill-tracker-incomes';
+const INCOME_SEED_FLAG_KEY = 'bill-tracker-income-seeded';
 
 function formatLocalDate(date: Date): string {
   const year = date.getFullYear();
@@ -61,13 +69,38 @@ const demoBills: Bill[] = [
   },
 ];
 
+const demoIncomes: Income[] = [
+  {
+    id: 'payday',
+    name: 'Payday',
+    amount: 2850,
+    currency: 'CAD',
+    date: formatLocalDate(new Date(year, month, 1)),
+    recurrence: 'BIWEEKLY',
+    category: 'Salary',
+    notes: 'Bi-weekly pay',
+    source: 'Employer',
+  },
+  {
+    id: 'freelance-design',
+    name: 'Freelance design',
+    amount: 450,
+    currency: 'CAD',
+    date: formatLocalDate(new Date(year, month, 12)),
+    recurrence: 'ONE_TIME',
+    category: 'Side projects',
+    notes: 'Landing page revision',
+    source: 'Freelance',
+  },
+];
+
 export function loadBills(): Bill[] {
   if (typeof window === 'undefined') {
     return [];
   }
 
   try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
+  const stored = window.localStorage.getItem(BILL_STORAGE_KEY);
     if (!stored) {
       return [];
     }
@@ -85,7 +118,7 @@ export function saveBills(bills: Bill[]): void {
   }
 
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(bills));
+    window.localStorage.setItem(BILL_STORAGE_KEY, JSON.stringify(bills));
   } catch (error) {
     console.error('Failed to save bills', error);
   }
@@ -97,10 +130,10 @@ export function seedDemoDataOnce(): Bill[] {
   }
 
   try {
-    const seeded = window.localStorage.getItem(SEED_FLAG_KEY);
+    const seeded = window.localStorage.getItem(BILL_SEED_FLAG_KEY);
     if (!seeded) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(demoBills));
-      window.localStorage.setItem(SEED_FLAG_KEY, 'true');
+      window.localStorage.setItem(BILL_STORAGE_KEY, JSON.stringify(demoBills));
+      window.localStorage.setItem(BILL_SEED_FLAG_KEY, 'true');
       return demoBills;
     }
     return loadBills();
@@ -110,46 +143,176 @@ export function seedDemoDataOnce(): Bill[] {
   }
 }
 
-export function exportBillsToJSON(bills: Bill[]): string {
-  return JSON.stringify(bills, null, 2);
+export function loadIncomes(): Income[] {
+  if (typeof window === 'undefined') {
+    return [];
+  }
+
+  try {
+    const stored = window.localStorage.getItem(INCOME_STORAGE_KEY);
+    if (!stored) {
+      return [];
+    }
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed
+      .map((item) => {
+        try {
+          return normalizeIncome(item);
+        } catch (error) {
+          console.warn('Skipping invalid income entry from storage', error);
+          return null;
+        }
+      })
+      .filter((income): income is Income => income !== null);
+  } catch (error) {
+    console.error('Failed to load incomes from storage', error);
+    return [];
+  }
 }
 
-export function importBillsFromJSON(json: string): Bill[] {
+export function saveIncomes(incomes: Income[]): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(INCOME_STORAGE_KEY, JSON.stringify(incomes));
+  } catch (error) {
+    console.error('Failed to save incomes', error);
+  }
+}
+
+export function seedIncomeDemoDataOnce(): Income[] {
+  if (typeof window === 'undefined') {
+    return demoIncomes;
+  }
+
+  try {
+    const seeded = window.localStorage.getItem(INCOME_SEED_FLAG_KEY);
+    if (!seeded) {
+      window.localStorage.setItem(INCOME_STORAGE_KEY, JSON.stringify(demoIncomes));
+      window.localStorage.setItem(INCOME_SEED_FLAG_KEY, 'true');
+      return demoIncomes;
+    }
+    return loadIncomes();
+  } catch (error) {
+    console.error('Failed to seed income demo data', error);
+    return demoIncomes;
+  }
+}
+
+export interface PersistedData {
+  bills: Bill[];
+  incomes: Income[];
+}
+
+function normalizeBill(item: unknown): Bill {
+  if (typeof item !== 'object' || item === null) {
+    throw new Error('Invalid bill entry in JSON payload');
+  }
+
+  const record = item as Record<string, unknown>;
+  const recurrence = record.recurrence as Record<string, unknown> | undefined;
+
+  if (
+    typeof record.id !== 'string' ||
+    typeof record.name !== 'string' ||
+    typeof record.amount !== 'number' ||
+    typeof record.currency !== 'string' ||
+    typeof record.firstDueDate !== 'string' ||
+    !recurrence ||
+    typeof recurrence.type !== 'string'
+  ) {
+    throw new Error('Invalid bill entry in JSON payload');
+  }
+
+  return {
+    id: record.id,
+    name: record.name,
+    amount: record.amount,
+    currency: record.currency as Currency,
+    firstDueDate: record.firstDueDate,
+    recurrence: {
+      type: recurrence.type as RecurrenceType,
+      intervalDays: typeof recurrence.intervalDays === 'number' ? recurrence.intervalDays : undefined,
+    },
+    notes: typeof record.notes === 'string' ? record.notes : undefined,
+    active: typeof record.active === 'boolean' ? record.active : true,
+    category: typeof record.category === 'string' ? record.category : undefined,
+  };
+}
+
+function normalizeIncome(item: unknown): Income {
+  if (typeof item !== 'object' || item === null) {
+    throw new Error('Invalid income entry in JSON payload');
+  }
+
+  const record = item as Record<string, unknown>;
+  const recurrenceRaw = typeof record.recurrence === 'string' ? record.recurrence.toUpperCase() : 'ONE_TIME';
+  const recurrence: IncomeRecurrenceType = (() => {
+    switch (recurrenceRaw) {
+      case 'BIWEEKLY':
+        return 'BIWEEKLY';
+      case 'MONTHLY':
+        return 'MONTHLY';
+      default:
+        return 'ONE_TIME';
+    }
+  })();
+
+  if (
+    typeof record.id !== 'string' ||
+    typeof record.name !== 'string' ||
+    typeof record.amount !== 'number' ||
+    typeof record.currency !== 'string' ||
+    typeof record.date !== 'string'
+  ) {
+    throw new Error('Invalid income entry in JSON payload');
+  }
+
+  return {
+    id: record.id,
+    name: record.name,
+    amount: record.amount,
+    currency: record.currency as Currency,
+    date: record.date,
+    recurrence,
+    category: typeof record.category === 'string' ? record.category : undefined,
+    notes: typeof record.notes === 'string' ? record.notes : undefined,
+    source: typeof record.source === 'string' ? record.source : undefined,
+  };
+}
+
+export function exportAppDataToJSON(data: PersistedData): string {
+  return JSON.stringify(data, null, 2);
+}
+
+export function importAppDataFromJSON(json: string): PersistedData {
   const parsed = JSON.parse(json);
-  if (!Array.isArray(parsed)) {
+
+  if (Array.isArray(parsed)) {
+    return {
+      bills: parsed.map(normalizeBill),
+      incomes: [],
+    };
+  }
+
+  if (typeof parsed !== 'object' || parsed === null) {
     throw new Error('Invalid JSON payload');
   }
 
-  return parsed.map((item) => {
-    if (
-      typeof item !== 'object' ||
-      item === null ||
-      typeof item.id !== 'string' ||
-      typeof item.name !== 'string' ||
-      typeof item.amount !== 'number' ||
-      !item.currency ||
-      typeof item.firstDueDate !== 'string' ||
-      !item.recurrence ||
-      typeof item.recurrence.type !== 'string'
-    ) {
-      throw new Error('Invalid bill entry in JSON payload');
-    }
+  const billsRaw = Array.isArray((parsed as { bills?: unknown }).bills)
+    ? (parsed as { bills: unknown[] }).bills
+    : [];
+  const incomesRaw = Array.isArray((parsed as { incomes?: unknown }).incomes)
+    ? (parsed as { incomes: unknown[] }).incomes
+    : [];
 
-    const normalized: Bill = {
-      id: item.id,
-      name: item.name,
-      amount: item.amount,
-      currency: item.currency,
-      firstDueDate: item.firstDueDate,
-      recurrence: {
-        type: item.recurrence.type,
-        intervalDays: item.recurrence.intervalDays,
-      },
-      notes: item.notes ?? undefined,
-      active: item.active ?? true,
-      category: item.category ?? undefined,
-    };
-
-    return normalized;
-  });
+  return {
+    bills: billsRaw.map(normalizeBill),
+    incomes: incomesRaw.map(normalizeIncome),
+  };
 }

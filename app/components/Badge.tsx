@@ -4,7 +4,7 @@ import clsx from 'clsx';
 
 interface BadgeProps {
   value: number;
-  variant?: 'default' | 'danger';
+  variant?: 'default' | 'danger' | 'income';
 }
 
 export function Badge({ value, variant = 'default' }: BadgeProps) {
@@ -15,8 +15,12 @@ export function Badge({ value, variant = 'default' }: BadgeProps) {
   return (
     <span
       className={clsx(
-        'ml-auto rounded-full px-2 py-0.5 text-xs font-semibold',
-        variant === 'danger' ? 'bg-danger/20 text-danger' : 'bg-accent/20 text-accent',
+        'rounded-full px-2 py-0.5 text-xs font-semibold',
+        variant === 'danger'
+          ? 'bg-danger/20 text-danger'
+          : variant === 'income'
+            ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300'
+            : 'bg-accent/20 text-accent',
       )}
     >
       {value}

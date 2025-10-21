@@ -4,6 +4,8 @@ import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { BillFormModal } from './components/BillFormModal';
 import { DayDrawer } from './components/DayDrawer';
 import { IconButton } from './components/IconButton';
+import { IncomeFormModal } from './components/IncomeFormModal';
+import { IncomeOverview } from './components/IncomeOverview';
 import { MonthGrid } from './components/MonthGrid';
 import { RecurringOverview, type FrequencyTotal } from './components/RecurringOverview';
 import { SearchBar } from './components/SearchBar';
@@ -13,17 +15,22 @@ import { TotalsBar } from './components/TotalsBar';
 import { formatCurrency } from './lib/currency';
 import {
   addDays,
+  getIncomeOccurrencesInMonth,
+  getIncomeOccurrencesInRange,
   getOccurrencesInMonth,
   getOccurrencesInRange,
   isOverdue,
 } from './lib/recurrence';
 import {
-  exportBillsToJSON,
-  importBillsFromJSON,
+  exportAppDataToJSON,
+  importAppDataFromJSON,
   saveBills,
+  saveIncomes,
   seedDemoDataOnce,
+  seedIncomeDemoDataOnce,
 } from './lib/storage';
-import type { Bill, Currency } from './lib/types';
+import type { PersistedData } from './lib/storage';
+import type { Bill, Currency, Income } from './lib/types';
 
 const daySummaryFormatter = new Intl.DateTimeFormat('en-CA', {
   weekday: 'short',
@@ -76,22 +83,27 @@ export default function HomePage() {
   const todayKey = useMemo(() => toDateKey(todayDate), [todayDate]);
 
   const [bills, setBills] = useState<Bill[]>([]);
+  const [incomes, setIncomes] = useState<Income[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [displayMonth, setDisplayMonth] = useState<Date>(() => startOfMonth(todayDate));
   const [selectedDate, setSelectedDate] = useState<string | null>(todayKey);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
+  const [incomeFormOpen, setIncomeFormOpen] = useState(false);
   const [editingBill, setEditingBill] = useState<Bill | null>(null);
+  const [editingIncome, setEditingIncome] = useState<Income | null>(null);
   const [importConfirmOpen, setImportConfirmOpen] = useState(false);
-  const [pendingImport, setPendingImport] = useState<Bill[] | null>(null);
+  const [pendingImport, setPendingImport] = useState<PersistedData | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [dateFilter, setDateFilter] = useState('');
 
   useEffect(() => {
-    const initial = seedDemoDataOnce();
-    setBills(initial);
+    const initialBills = seedDemoDataOnce();
+    const initialIncomes = seedIncomeDemoDataOnce();
+    setBills(initialBills);
+    setIncomes(initialIncomes);
     setHydrated(true);
   }, []);
 
@@ -101,6 +113,13 @@ export default function HomePage() {
     }
     saveBills(bills);
   }, [bills, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) {
+      return;
+    }
+    saveIncomes(incomes);
+  }, [hydrated, incomes]);
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -157,33 +176,69 @@ export default function HomePage() {
     });
   }, [bills, selectedCategory, searchQuery, dateFilterInstance]);
 
+  const visibleIncomes = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return incomes.filter((income) => {
+      if (query) {
+        const haystack = `${income.name} ${income.notes ?? ''} ${income.source ?? ''}`.toLowerCase();
+        if (!haystack.includes(query)) {
+          return false;
+        }
+      }
+
+      const occurrences = dateFilterInstance
+        ? getIncomeOccurrencesInRange(income, dateFilterInstance, dateFilterInstance)
+        : getIncomeOccurrencesInMonth(income, displayMonth);
+
+      return occurrences.length > 0;
+    });
+  }, [dateFilterInstance, displayMonth, incomes, searchQuery]);
+
   const occurrencesByDate = useMemo(() => {
-    const map: Record<string, Bill[]> = {};
+    const map: Record<string, { bills: Bill[]; incomes: Income[] }> = {};
+
+    const ensureEntry = (dateKey: string) => {
+      if (!map[dateKey]) {
+        map[dateKey] = { bills: [], incomes: [] };
+      }
+      return map[dateKey];
+    };
+
     activeBills.forEach((bill) => {
       const occurrenceKeys = dateFilterInstance
         ? getOccurrencesInRange(bill, dateFilterInstance, dateFilterInstance)
         : getOccurrencesInMonth(bill, displayMonth);
       occurrenceKeys.forEach((dateKey) => {
-        if (!map[dateKey]) {
-          map[dateKey] = [];
-        }
-        map[dateKey].push(bill);
+        ensureEntry(dateKey).bills.push(bill);
       });
     });
-    return map;
-  }, [activeBills, displayMonth, dateFilterInstance]);
 
-  const countsByDate = useMemo(() => {
-    const counts: Record<string, number> = {};
-    Object.entries(occurrencesByDate).forEach(([dateKey, dayBills]) => {
-      counts[dateKey] = dayBills.length;
+    visibleIncomes.forEach((income) => {
+      const occurrenceKeys = dateFilterInstance
+        ? getIncomeOccurrencesInRange(income, dateFilterInstance, dateFilterInstance)
+        : getIncomeOccurrencesInMonth(income, displayMonth);
+      occurrenceKeys.forEach((dateKey) => {
+        ensureEntry(dateKey).incomes.push(income);
+      });
+    });
+
+    return map;
+  }, [activeBills, dateFilterInstance, displayMonth, visibleIncomes]);
+
+  const dayCounts = useMemo(() => {
+    const counts: Record<string, { bills: number; incomes: number }> = {};
+    Object.entries(occurrencesByDate).forEach(([dateKey, dayItems]) => {
+      counts[dateKey] = {
+        bills: dayItems.bills.length,
+        incomes: dayItems.incomes.length,
+      };
     });
     return counts;
   }, [occurrencesByDate]);
 
   const daySummaries = useMemo(() => {
-    return (Object.entries(occurrencesByDate) as [string, Bill[]][])
-      .map(([dateKey, dayBills]) => {
+    return Object.entries(occurrencesByDate)
+      .map(([dateKey, dayItems]) => {
         const parsed = parseKey(dateKey);
         if (!parsed) {
           return null;
@@ -192,15 +247,21 @@ export default function HomePage() {
           dateKey,
           date: parsed,
           label: daySummaryFormatter.format(parsed),
-          billsForDay: dayBills,
+          billsForDay: dayItems.bills,
+          incomesForDay: dayItems.incomes,
         };
       })
-      .filter((entry): entry is { dateKey: string; date: Date; label: string; billsForDay: Bill[] } =>
-        entry !== null,
+      .filter(
+        (entry): entry is {
+          dateKey: string;
+          date: Date;
+          label: string;
+          billsForDay: Bill[];
+          incomesForDay: Income[];
+        } => entry !== null,
       )
       .sort((a, b) => a.date.getTime() - b.date.getTime());
   }, [occurrencesByDate]);
-
   const chartPoints = useMemo(() => {
     const daysInMonth = new Date(
       displayMonth.getFullYear(),
@@ -254,28 +315,53 @@ export default function HomePage() {
     }));
   }, [activeBills, displayMonth]);
 
+  const incomeCategoryTotals = useMemo(() => {
+    const map = new Map<string, Partial<Record<Currency, number>>>();
+
+    visibleIncomes.forEach((income) => {
+      const occurrences = getIncomeOccurrencesInMonth(income, displayMonth);
+      if (!occurrences.length) {
+        return;
+      }
+      const key = income.category ?? '';
+      const currentTotals = map.get(key) ?? {};
+      const existing = currentTotals[income.currency] ?? 0;
+      currentTotals[income.currency] = Number(
+        (existing + income.amount * occurrences.length).toFixed(2),
+      );
+      map.set(key, currentTotals);
+    });
+
+    return Array.from(map.entries())
+      .map(([category, totals]) => ({
+        category,
+        totals,
+      }))
+      .sort((a, b) => {
+        const labelA = a.category || 'Uncategorized';
+        const labelB = b.category || 'Uncategorized';
+        return labelA.localeCompare(labelB);
+      });
+  }, [displayMonth, visibleIncomes]);
+
   const overdueDates = useMemo(() => {
     const set = new Set<string>();
-    Object.keys(occurrencesByDate).forEach((key) => {
-      if (isOverdue(key)) {
+    Object.entries(occurrencesByDate).forEach(([key, dayItems]) => {
+      if (dayItems.bills.length > 0 && isOverdue(key)) {
         set.add(key);
       }
     });
     return set;
   }, [occurrencesByDate]);
 
-  const selectedBills = useMemo(() => {
+  const selectedDayItems = useMemo(() => {
     if (!selectedDate) {
-      return [];
+      return { bills: [] as Bill[], incomes: [] as Income[] };
     }
-    const target = parseKey(selectedDate);
-    if (!target) {
-      return [];
-    }
-    return activeBills.filter(
-      (bill: Bill) => getOccurrencesInRange(bill, target, target).length > 0,
+    return (
+      occurrencesByDate[selectedDate] ?? { bills: [] as Bill[], incomes: [] as Income[] }
     );
-  }, [activeBills, selectedDate]);
+  }, [occurrencesByDate, selectedDate]);
 
   const monthlyTotals = useMemo(() => {
     const totals: Partial<Record<Currency, number>> = {};
@@ -288,6 +374,38 @@ export default function HomePage() {
     });
     return totals;
   }, [activeBills, displayMonth]);
+
+  const monthlyIncomeTotals = useMemo(() => {
+    const totals: Partial<Record<Currency, number>> = {};
+    visibleIncomes.forEach((income) => {
+      const occurrences = getIncomeOccurrencesInMonth(income, displayMonth);
+      if (occurrences.length === 0) {
+        return;
+      }
+      accumulateTotals(totals, income.currency, income.amount, occurrences.length);
+    });
+    return totals;
+  }, [displayMonth, visibleIncomes]);
+
+  const monthlyNetSummaries = useMemo(() => {
+    const currencies = new Set<Currency>();
+    (Object.keys(monthlyIncomeTotals) as Currency[]).forEach((currency) =>
+      currencies.add(currency),
+    );
+    (Object.keys(monthlyTotals) as Currency[]).forEach((currency) => currencies.add(currency));
+
+    return Array.from(currencies)
+      .map((currency) => {
+        const income = monthlyIncomeTotals[currency] ?? 0;
+        const expenses = monthlyTotals[currency] ?? 0;
+        const net = Number((income - expenses).toFixed(2));
+        return { currency, income, expenses, net };
+      })
+      .filter(({ income, expenses, net }) => income !== 0 || expenses !== 0 || net !== 0)
+      .sort((a, b) => a.currency.localeCompare(b.currency));
+  }, [monthlyIncomeTotals, monthlyTotals]);
+
+  const daySummariesListMargin = monthlyNetSummaries.length > 0 ? 'mt-6' : 'mt-4';
 
   const next7Totals = useMemo(() => {
     const totals: Partial<Record<Currency, number>> = {};
@@ -316,6 +434,18 @@ export default function HomePage() {
     });
     return totals;
   }, [activeBills]);
+
+  const billsDueToday = useMemo(() => {
+    return activeBills.filter(
+      (bill: Bill) => getOccurrencesInRange(bill, todayDate, todayDate).length > 0,
+    );
+  }, [activeBills, todayDate]);
+
+  const incomesToday = useMemo(() => {
+    return incomes.filter(
+      (income) => getIncomeOccurrencesInRange(income, todayDate, todayDate).length > 0,
+    );
+  }, [incomes, todayDate]);
 
   function handleSelectDay(dateKey: string) {
     setSelectedDate(dateKey);
@@ -351,8 +481,26 @@ export default function HomePage() {
     setBills((current: Bill[]) => current.filter((bill: Bill) => bill.id !== id));
   }
 
+  function handleSaveIncome(income: Income) {
+    setIncomes((current: Income[]) => {
+      const index = current.findIndex((item) => item.id === income.id);
+      if (index >= 0) {
+        const clone = [...current];
+        clone[index] = income;
+        return clone;
+      }
+      return [...current, income];
+    });
+    setIncomeFormOpen(false);
+    setEditingIncome(null);
+  }
+
+  function handleDeleteIncome(id: string) {
+    setIncomes((current: Income[]) => current.filter((income: Income) => income.id !== id));
+  }
+
   function handleExport() {
-    const data = exportBillsToJSON(bills);
+    const data = exportAppDataToJSON({ bills, incomes });
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
@@ -369,12 +517,12 @@ export default function HomePage() {
     }
     try {
       const text = await file.text();
-      const imported = importBillsFromJSON(text);
+      const imported = importAppDataFromJSON(text);
       setPendingImport(imported);
       setImportConfirmOpen(true);
       setImportError(null);
     } catch (error) {
-      console.error('Failed to import bills', error);
+      console.error('Failed to import data', error);
       setImportError('Invalid JSON file. Please export from this app and retry.');
     } finally {
       event.target.value = '';
@@ -383,7 +531,8 @@ export default function HomePage() {
 
   function confirmImport() {
     if (pendingImport) {
-      setBills(pendingImport);
+      setBills(pendingImport.bills);
+      setIncomes(pendingImport.incomes);
     }
     setPendingImport(null);
     setImportConfirmOpen(false);
@@ -432,6 +581,16 @@ export default function HomePage() {
           </button>
           <button
             type="button"
+            onClick={() => {
+              setEditingIncome(null);
+              setIncomeFormOpen(true);
+            }}
+            className="rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-background transition hover:bg-emerald-500/90"
+          >
+            + Add income
+          </button>
+          <button
+            type="button"
             onClick={handleExport}
             className="rounded-full border border-accent/50 px-5 py-2 text-sm font-semibold text-accent transition hover:border-accent"
           >
@@ -470,13 +629,16 @@ export default function HomePage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <SummaryChart points={chartPoints} />
-        <RecurringOverview items={recurringOverviewItems} />
+        <div className="space-y-6">
+          <RecurringOverview items={recurringOverviewItems} />
+          <IncomeOverview items={incomeCategoryTotals} />
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
         <MonthGrid
           monthDate={displayMonth}
-          occurrences={countsByDate}
+          dayCounts={dayCounts}
           overdueDates={overdueDates}
           selectedDate={selectedDate}
           todayKey={todayKey}
@@ -489,24 +651,26 @@ export default function HomePage() {
             <h2 className="text-lg font-semibold text-textDark dark:text-textPrimary">Today</h2>
             <p className="mt-1 text-sm text-textDark/60 dark:text-textPrimary/60">{todayKey}</p>
             <div className="mt-4 space-y-3 text-sm text-textDark/70 dark:text-textPrimary/70">
-              {activeBills
-                .map((bill: Bill) => ({
-                  bill,
-                  due: getOccurrencesInRange(bill, todayDate, todayDate)[0],
-                }))
-                .filter((entry) => entry.due)
-                .map(({ bill }) => (
-                  <div key={bill.id} className="flex items-center justify-between">
-                    <span>{bill.name}</span>
-                    <span className="text-accent">
-                      {formatCurrency(bill.amount, bill.currency)}
-                    </span>
-                  </div>
-                ))}
-              {activeBills.every(
-                (bill) => !getOccurrencesInRange(bill, todayDate, todayDate).length,
-              ) && (
-                <p className="text-textDark/60 dark:text-textPrimary/60">No bills due today.</p>
+              {billsDueToday.map((bill) => (
+                <div key={bill.id} className="flex items-center justify-between">
+                  <span>{bill.name}</span>
+                  <span className="text-accent">
+                    {formatCurrency(bill.amount, bill.currency)}
+                  </span>
+                </div>
+              ))}
+              {incomesToday.map((income) => (
+                <div key={income.id} className="flex items-center justify-between">
+                  <span>{income.name}</span>
+                  <span className="text-emerald-500 dark:text-emerald-400">
+                    +{formatCurrency(income.amount, income.currency)}
+                  </span>
+                </div>
+              ))}
+              {billsDueToday.length === 0 && incomesToday.length === 0 && (
+                <p className="text-textDark/60 dark:text-textPrimary/60">
+                  Nothing scheduled today.
+                </p>
               )}
             </div>
           </article>
@@ -546,13 +710,60 @@ export default function HomePage() {
         <h2 className="text-lg font-semibold text-textDark dark:text-textPrimary">
           This month at a glance
         </h2>
+        {monthlyNetSummaries.length > 0 && (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {monthlyNetSummaries.map(({ currency, income, expenses, net }) => {
+              const netPositive = net > 0;
+              const netClass = netPositive
+                ? 'text-emerald-500 dark:text-emerald-400'
+                : 'text-danger';
+              const incomeDisplay = income > 0
+                ? `+${formatCurrency(income, currency)}`
+                : formatCurrency(income, currency);
+              const expensesDisplay = expenses > 0
+                ? `-${formatCurrency(expenses, currency)}`
+                : formatCurrency(expenses, currency);
+              const netDisplay = netPositive
+                ? `+${formatCurrency(net, currency)}`
+                : formatCurrency(net, currency);
+              return (
+                <div
+                  key={currency}
+                  className="rounded-2xl border border-mutedLight/40 bg-backgroundLight/40 p-4 text-sm dark:border-muted/40 dark:bg-background/40"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide text-textDark/60 dark:text-textPrimary/60">
+                    {currency}
+                  </p>
+                  <div className="mt-3 space-y-2 text-textDark/80 dark:text-textPrimary/80">
+                    <div className="flex items-center justify-between">
+                      <span>Money earned</span>
+                      <span className="font-semibold text-emerald-500 dark:text-emerald-400">
+                        {incomeDisplay}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Bills & subscriptions</span>
+                      <span className="font-semibold text-textDark/70 dark:text-textPrimary/70">
+                        {expensesDisplay}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Money left over</span>
+                      <span className={`font-semibold ${netClass}`}>{netDisplay}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
         {daySummaries.length === 0 ? (
           <p className="mt-3 text-sm text-textDark/60 dark:text-textPrimary/60">
-            No bills are scheduled for this month.
+            No bills or income entries are scheduled for this month.
           </p>
         ) : (
-          <ul className="mt-4 space-y-4">
-            {daySummaries.map(({ dateKey, label, billsForDay }) => (
+          <ul className={`${daySummariesListMargin} space-y-4`}>
+            {daySummaries.map(({ dateKey, label, billsForDay, incomesForDay }) => (
               <li key={dateKey}>
                 <p className="text-sm font-semibold uppercase tracking-wide text-textDark/70 dark:text-textPrimary/70">
                   {label}
@@ -567,6 +778,18 @@ export default function HomePage() {
                       <span className="flex-1">{bill.name}</span>
                       <span className="text-textDark/60 dark:text-textPrimary/60">
                         {formatCurrency(bill.amount, bill.currency)}
+                      </span>
+                    </li>
+                  ))}
+                  {incomesForDay.map((income) => (
+                    <li
+                      key={`${dateKey}-${income.id}`}
+                      className="flex items-center gap-2 text-sm text-textDark/80 dark:text-textPrimary/80"
+                    >
+                      <span className="text-emerald-500">+</span>
+                      <span className="flex-1">{income.name}</span>
+                      <span className="text-emerald-500 dark:text-emerald-400">
+                        {formatCurrency(income.amount, income.currency)}
                       </span>
                     </li>
                   ))}
@@ -588,13 +811,19 @@ export default function HomePage() {
       <DayDrawer
         open={drawerOpen}
         date={selectedDate}
-        bills={selectedBills}
+        bills={selectedDayItems.bills}
+        incomes={selectedDayItems.incomes}
         onClose={() => setDrawerOpen(false)}
         onEdit={(bill) => {
           setEditingBill(bill);
           setFormOpen(true);
         }}
         onDelete={handleDeleteBill}
+        onEditIncome={(income) => {
+          setEditingIncome(income);
+          setIncomeFormOpen(true);
+        }}
+        onDeleteIncome={handleDeleteIncome}
       />
 
       <BillFormModal
@@ -608,6 +837,16 @@ export default function HomePage() {
         onSave={handleSaveBill}
       />
 
+      <IncomeFormModal
+        open={incomeFormOpen}
+        initialIncome={editingIncome}
+        onClose={() => {
+          setIncomeFormOpen(false);
+          setEditingIncome(null);
+        }}
+        onSave={handleSaveIncome}
+      />
+
       {importConfirmOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
@@ -619,8 +858,8 @@ export default function HomePage() {
               Replace all bills?
             </h2>
             <p className="mt-3 text-sm text-textDark/70 dark:text-textPrimary/70">
-              Importing will overwrite your current list with {pendingImport?.length ?? 0}{' '}
-              bills from the selected file.
+              Importing will overwrite your current list with {pendingImport?.bills.length ?? 0}{' '}
+              bills and {pendingImport?.incomes.length ?? 0} income entries from the selected file.
             </p>
             <div className="mt-6 flex flex-wrap justify-end gap-3">
               <button
