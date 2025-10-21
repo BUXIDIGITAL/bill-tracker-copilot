@@ -14,8 +14,12 @@ const config: Config = {
         background: '#111111',
         surface: '#1A1A1A',
         textPrimary: '#F2F2F2',
+        backgroundLight: '#F5F5F5',
+        surfaceLight: '#FFFFFF',
+        textDark: '#111111',
         accent: '#D4AF37',
         danger: '#EF4444',
+        mutedLight: '#E5E5E5',
         muted: '#2A2A2A',
       },
       fontFamily: {

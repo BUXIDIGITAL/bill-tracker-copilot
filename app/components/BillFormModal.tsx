@@ -46,6 +46,7 @@ export function BillFormModal({
   const [intervalDays, setIntervalDays] = useState<string>('30');
   const [notes, setNotes] = useState('');
   const [active, setActive] = useState(true);
+  const [category, setCategory] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -59,6 +60,7 @@ export function BillFormModal({
       setIntervalDays((bill?.recurrence.intervalDays ?? 30).toString());
       setNotes(bill?.notes ?? '');
       setActive(bill?.active ?? true);
+      setCategory(bill?.category ?? '');
       setError(null);
     }
   }, [open, initialBill, defaultDate]);
@@ -110,6 +112,7 @@ export function BillFormModal({
           : { type: recurrenceType },
       notes: notes.trim() || undefined,
       active,
+      category: category.trim() || undefined,
     };
 
     onSave(bill);
@@ -134,34 +137,48 @@ export function BillFormModal({
       />
       <form
         className={clsx(
-          'relative z-10 w-full max-w-xl rounded-3xl bg-surface p-6 shadow-2xl transition-transform',
+          'relative z-10 w-full max-w-xl rounded-3xl bg-surfaceLight p-6 shadow-2xl transition-transform dark:bg-surface',
           open ? 'translate-y-0' : 'translate-y-6 opacity-0',
         )}
         onSubmit={handleSubmit}
       >
         <header className="mb-6">
-          <h2 className="text-2xl font-semibold text-textPrimary">{title}</h2>
-          <p className="text-sm text-textPrimary/60">
+          <h2 className="text-2xl font-semibold text-textDark dark:text-textPrimary">
+            {title}
+          </h2>
+          <p className="text-sm text-textDark/60 dark:text-textPrimary/60">
             Keep your recurring costs organized.
           </p>
         </header>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-2 text-sm">
-            <span className="text-textPrimary/70">Name</span>
+            <span className="text-textDark/70 dark:text-textPrimary/70">Name</span>
             <input
               required
               value={name}
               onChange={(event: ChangeEvent<HTMLInputElement>) =>
                 setName(event.target.value)
               }
-              className="rounded-2xl border border-muted bg-muted/40 px-4 py-3 text-base text-textPrimary placeholder:text-textPrimary/40 focus:border-accent"
+              className="rounded-2xl border border-mutedLight bg-mutedLight/60 px-4 py-3 text-base text-textDark placeholder:text-textDark/40 focus:border-accent dark:border-muted dark:bg-muted/40 dark:text-textPrimary dark:placeholder:text-textPrimary/40"
               placeholder="Streaming service"
             />
           </label>
 
           <label className="flex flex-col gap-2 text-sm">
-            <span className="text-textPrimary/70">Amount</span>
+            <span className="text-textDark/70 dark:text-textPrimary/70">Category</span>
+            <input
+              value={category}
+              onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                setCategory(event.target.value)
+              }
+              className="rounded-2xl border border-mutedLight bg-mutedLight/60 px-4 py-3 text-base text-textDark placeholder:text-textDark/40 focus:border-accent dark:border-muted dark:bg-muted/40 dark:text-textPrimary dark:placeholder:text-textPrimary/40"
+              placeholder="e.g. Utilities"
+            />
+          </label>
+
+          <label className="flex flex-col gap-2 text-sm">
+            <span className="text-textDark/70 dark:text-textPrimary/70">Amount</span>
             <input
               required
               inputMode="decimal"
@@ -172,18 +189,18 @@ export function BillFormModal({
               onChange={(event: ChangeEvent<HTMLInputElement>) =>
                 setAmount(event.target.value)
               }
-              className="rounded-2xl border border-muted bg-muted/40 px-4 py-3 text-base text-textPrimary focus:border-accent"
+              className="rounded-2xl border border-mutedLight bg-mutedLight/60 px-4 py-3 text-base text-textDark focus:border-accent dark:border-muted dark:bg-muted/40 dark:text-textPrimary"
             />
           </label>
 
           <label className="flex flex-col gap-2 text-sm">
-            <span className="text-textPrimary/70">Currency</span>
+            <span className="text-textDark/70 dark:text-textPrimary/70">Currency</span>
             <select
               value={currency}
               onChange={(event: ChangeEvent<HTMLSelectElement>) =>
                 setCurrency(event.target.value as Currency)
               }
-              className="rounded-2xl border border-muted bg-muted/40 px-4 py-3 text-base text-textPrimary focus:border-accent"
+              className="rounded-2xl border border-mutedLight bg-mutedLight/60 px-4 py-3 text-base text-textDark focus:border-accent dark:border-muted dark:bg-muted/40 dark:text-textPrimary"
             >
               {currencyOptions.map((option) => (
                 <option key={option} value={option}>
@@ -194,7 +211,7 @@ export function BillFormModal({
           </label>
 
           <label className="flex flex-col gap-2 text-sm">
-            <span className="text-textPrimary/70">First due date</span>
+            <span className="text-textDark/70 dark:text-textPrimary/70">First due date</span>
             <input
               required
               type="date"
@@ -202,18 +219,18 @@ export function BillFormModal({
               onChange={(event: ChangeEvent<HTMLInputElement>) =>
                 setFirstDueDate(event.target.value)
               }
-              className="rounded-2xl border border-muted bg-muted/40 px-4 py-3 text-base text-textPrimary focus:border-accent"
+              className="rounded-2xl border border-mutedLight bg-mutedLight/60 px-4 py-3 text-base text-textDark focus:border-accent dark:border-muted dark:bg-muted/40 dark:text-textPrimary"
             />
           </label>
 
           <label className="flex flex-col gap-2 text-sm sm:col-span-2">
-            <span className="text-textPrimary/70">Recurrence</span>
+            <span className="text-textDark/70 dark:text-textPrimary/70">Recurrence</span>
             <select
               value={recurrenceType}
               onChange={(event: ChangeEvent<HTMLSelectElement>) =>
                 setRecurrenceType(event.target.value as RecurrenceType)
               }
-              className="rounded-2xl border border-muted bg-muted/40 px-4 py-3 text-base text-textPrimary focus:border-accent"
+              className="rounded-2xl border border-mutedLight bg-mutedLight/60 px-4 py-3 text-base text-textDark focus:border-accent dark:border-muted dark:bg-muted/40 dark:text-textPrimary"
             >
               {recurrenceChoices.map((choice) => (
                 <option key={choice.value} value={choice.value}>
@@ -225,7 +242,7 @@ export function BillFormModal({
 
           {recurrenceType === 'CUSTOM_DAYS' && (
             <label className="flex flex-col gap-2 text-sm">
-              <span className="text-textPrimary/70">Interval (days)</span>
+              <span className="text-textDark/70 dark:text-textPrimary/70">Interval (days)</span>
               <input
                 required
                 type="number"
@@ -234,31 +251,31 @@ export function BillFormModal({
                 onChange={(event: ChangeEvent<HTMLInputElement>) =>
                   setIntervalDays(event.target.value)
                 }
-                className="rounded-2xl border border-muted bg-muted/40 px-4 py-3 text-base text-textPrimary focus:border-accent"
+                className="rounded-2xl border border-mutedLight bg-mutedLight/60 px-4 py-3 text-base text-textDark focus:border-accent dark:border-muted dark:bg-muted/40 dark:text-textPrimary"
               />
             </label>
           )}
 
           <label className="sm:col-span-2 flex flex-col gap-2 text-sm">
-            <span className="text-textPrimary/70">Notes</span>
+            <span className="text-textDark/70 dark:text-textPrimary/70">Notes</span>
             <textarea
               value={notes}
               onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
                 setNotes(event.target.value)
               }
-              className="min-h-[96px] rounded-2xl border border-muted bg-muted/40 px-4 py-3 text-base text-textPrimary placeholder:text-textPrimary/40 focus:border-accent"
+              className="min-h-[96px] rounded-2xl border border-mutedLight bg-mutedLight/60 px-4 py-3 text-base text-textDark placeholder:text-textDark/40 focus:border-accent dark:border-muted dark:bg-muted/40 dark:text-textPrimary dark:placeholder:text-textPrimary/40"
               placeholder="Optional details"
             />
           </label>
 
-          <label className="flex items-center gap-3 text-sm text-textPrimary/80">
+          <label className="flex items-center gap-3 text-sm text-textDark/80 dark:text-textPrimary/80">
             <input
               type="checkbox"
               checked={active}
               onChange={(event: ChangeEvent<HTMLInputElement>) =>
                 setActive(event.target.checked)
               }
-              className="h-5 w-5 rounded border border-muted bg-muted/40 text-accent focus:border-accent"
+              className="h-5 w-5 rounded border border-mutedLight bg-mutedLight/60 text-accent focus:border-accent dark:border-muted dark:bg-muted/40"
             />
             Active
           </label>
@@ -270,7 +287,7 @@ export function BillFormModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full border border-muted px-5 py-2 text-sm font-medium text-textPrimary/80 transition hover:border-textPrimary"
+            className="rounded-full border border-mutedLight px-5 py-2 text-sm font-medium text-textDark transition hover:border-textDark dark:border-muted dark:text-textPrimary/80 dark:hover:border-textPrimary"
           >
             Cancel
           </button>

@@ -75,11 +75,15 @@ export function MonthGrid({
   const days = buildCalendar(monthDate);
 
   return (
-    <section className="rounded-3xl bg-surface p-6 shadow-glow">
+    <section className="rounded-3xl bg-surfaceLight p-6 shadow-glow dark:bg-surface">
       <header className="mb-6 flex items-center justify-between">
         <div>
-          <p className="text-sm uppercase tracking-wide text-textPrimary/60">Month</p>
-          <h1 className="text-2xl font-semibold text-textPrimary">{humanMonth}</h1>
+          <p className="text-sm uppercase tracking-wide text-textDark/60 dark:text-textPrimary/60">
+            Month
+          </p>
+          <h1 className="text-2xl font-semibold text-textDark dark:text-textPrimary">
+            {humanMonth}
+          </h1>
         </div>
         <div className="flex gap-2">
           <IconButton aria-label="Previous month" onClick={() => onChangeMonth(-1)}>
@@ -91,7 +95,7 @@ export function MonthGrid({
         </div>
       </header>
 
-      <div className="grid grid-cols-7 gap-3 text-center text-sm text-textPrimary/60">
+      <div className="grid grid-cols-7 gap-3 text-center text-sm text-textDark/60 dark:text-textPrimary/60">
         {weekdayLabels.map((label) => (
           <span key={label} className="px-2">
             {label}
@@ -113,8 +117,10 @@ export function MonthGrid({
               type="button"
               onClick={() => onSelectDay(key)}
               className={clsx(
-                'flex h-20 flex-col rounded-2xl border border-transparent bg-muted/30 p-3 text-left transition',
-                inCurrentMonth ? 'text-textPrimary' : 'text-textPrimary/30',
+                'flex h-20 flex-col rounded-2xl border border-transparent bg-mutedLight/60 p-3 text-left transition dark:bg-muted/30',
+                inCurrentMonth
+                  ? 'text-textDark dark:text-textPrimary'
+                  : 'text-textDark/30 dark:text-textPrimary/30',
                 isSelected && 'border-accent bg-accent/10',
                 isToday && 'border border-accent/60',
                 'hover:border-accent/40 hover:bg-accent/10',
@@ -124,7 +130,7 @@ export function MonthGrid({
                 <span>{date.getDate()}</span>
                 <Badge value={count} variant={overdue ? 'danger' : 'default'} />
               </div>
-              <span className="mt-auto text-xs text-textPrimary/50">
+              <span className="mt-auto text-xs text-textDark/40 dark:text-textPrimary/40">
                 {inCurrentMonth ? '' : date.getMonth() === monthDate.getMonth() ? '' : ''}
               </span>
             </button>

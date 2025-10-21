@@ -24,6 +24,7 @@ const demoBills: Bill[] = [
     recurrence: { type: 'MONTHLY' },
     notes: 'Premium plan',
     active: true,
+    category: 'Entertainment',
   },
   {
     id: 'hydro',
@@ -34,6 +35,7 @@ const demoBills: Bill[] = [
     recurrence: { type: 'MONTHLY' },
     notes: 'Utility bill',
     active: true,
+    category: 'Utilities',
   },
   {
     id: 'internet',
@@ -44,6 +46,7 @@ const demoBills: Bill[] = [
     recurrence: { type: 'MONTHLY' },
     notes: '1 Gbps plan',
     active: true,
+    category: 'Utilities',
   },
   {
     id: 'insurance',
@@ -54,6 +57,7 @@ const demoBills: Bill[] = [
     recurrence: { type: 'MONTHLY' },
     notes: '',
     active: true,
+    category: 'Insurance',
   },
 ];
 
@@ -143,6 +147,7 @@ export function importBillsFromJSON(json: string): Bill[] {
       },
       notes: item.notes ?? undefined,
       active: item.active ?? true,
+      category: item.category ?? undefined,
     };
 
     return normalized;

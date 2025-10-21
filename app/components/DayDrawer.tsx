@@ -75,15 +75,19 @@ export function DayDrawer({
       />
       <aside
         className={clsx(
-          'relative h-full w-full max-w-md transform bg-surface p-6 shadow-xl transition-transform',
+          'relative h-full w-full max-w-md transform bg-surfaceLight p-6 shadow-xl transition-transform dark:bg-surface',
           open ? 'translate-x-0' : 'translate-x-full',
         )}
       >
         <header className="mb-6 flex items-start justify-between">
           <div>
-            <p className="text-sm uppercase tracking-wide text-textPrimary/60">Bills</p>
-            <h2 className="text-xl font-semibold text-textPrimary">{formattedDate}</h2>
-            <p className="text-sm text-textPrimary/60">
+            <p className="text-sm uppercase tracking-wide text-textDark/60 dark:text-textPrimary/60">
+              Bills
+            </p>
+            <h2 className="text-xl font-semibold text-textDark dark:text-textPrimary">
+              {formattedDate}
+            </h2>
+            <p className="text-sm text-textDark/60 dark:text-textPrimary/60">
               {bills.length} item{bills.length === 1 ? '' : 's'}
             </p>
           </div>
@@ -94,15 +98,20 @@ export function DayDrawer({
 
         <div className="space-y-4 overflow-y-auto pb-20">
           {bills.length === 0 && (
-            <p className="rounded-2xl bg-muted/40 p-4 text-sm text-textPrimary/60">
+            <p className="rounded-2xl bg-mutedLight/60 p-4 text-sm text-textDark/60 dark:bg-muted/40 dark:text-textPrimary/60">
               No bills due on this day.
             </p>
           )}
           {bills.map((bill) => (
-            <article key={bill.id} className="rounded-2xl bg-muted/50 p-4">
+            <article
+              key={bill.id}
+              className="rounded-2xl bg-mutedLight/70 p-4 dark:bg-muted/50"
+            >
               <header className="flex items-start justify-between gap-2">
                 <div>
-                  <h3 className="text-lg font-semibold text-textPrimary">{bill.name}</h3>
+                  <h3 className="text-lg font-semibold text-textDark dark:text-textPrimary">
+                    {bill.name}
+                  </h3>
                   <p className="text-sm text-accent">
                     {formatCurrency(bill.amount, bill.currency)}
                   </p>
@@ -114,7 +123,9 @@ export function DayDrawer({
                 </span>
               </header>
               {bill.notes && (
-                <p className="mt-3 text-sm text-textPrimary/70">{bill.notes}</p>
+                <p className="mt-3 text-sm text-textDark/70 dark:text-textPrimary/70">
+                  {bill.notes}
+                </p>
               )}
               <footer className="mt-4 flex gap-2">
                 <button

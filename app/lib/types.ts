@@ -22,4 +22,5 @@ export interface Bill {
   recurrence: Recurrence;
   notes?: string;
   active: boolean;
+  category?: string;
 }

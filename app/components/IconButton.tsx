@@ -19,8 +19,8 @@ export function IconButton({
       className={clsx(
         'inline-flex items-center justify-center rounded-full p-2 transition-colors',
         variant === 'solid'
-          ? 'bg-accent/20 text-textPrimary hover:bg-accent/30'
-          : 'text-textPrimary/70 hover:text-textPrimary',
+          ? 'bg-accent/20 text-textDark hover:bg-accent/30 dark:text-textPrimary'
+          : 'text-textDark/60 hover:text-textDark dark:text-textPrimary/70 dark:hover:text-textPrimary',
         className,
       )}
       {...props}
